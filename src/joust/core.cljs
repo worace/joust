@@ -10,8 +10,8 @@
 (def acceleration-magnitude 1)
 (def flap-magnitude 3.5)
 (def vy-max 7)
-(def decel-magnitude 0.001)
-(def vx-max 12)
+(def decel-magnitude 0.1)
+(def vx-max 15)
 (def gravity-factor 0.4)
 
 (def button-value-mappings
@@ -22,7 +22,7 @@
 (def app-state (atom {:text "Joust"
                       :character {:position [300 300]
                                   :velocity [1 0]}
-                      :game-size [800 600]}))
+                      :game-size [800 400]}))
 
 (defn by-id [id] (.getElementById js/document id))
 (defn abs [num] (Math/abs num))
@@ -51,13 +51,14 @@
   (map mod coordinates bounds))
 
 (defn accel-toward-zero [num]
-  (if (> (abs num) 0)
+  (if (> (abs num) 0.0005)
     (- num (* (direction num) decel-magnitude))
-    num))
+    0))
 
-(defn drag-character [character]
+(defn drag-x [{[vx vy] :velocity :as character}]
   "Slow the character down by accelerating it toward 0"
-  (update-in character [:velocity] (partial map accel-toward-zero)))
+  (println "x vel: " vx)
+  (assoc-in character [:velocity] [(accel-toward-zero vx) vy]))
 
 (defn speed-limit
   ([velocity] (speed-limit velocity vx-max))
@@ -77,7 +78,7 @@
   ;; (println "game tick state: " app-state)
   (-> app-state
       (update-in [:character] move-character)
-      (update-in [:character] drag-character)
+      (update-in [:character] drag-x)
       (update-in [:character] gravitate)
       (update-in [:character :position] (partial wrap (:game-size app-state)))))
 
