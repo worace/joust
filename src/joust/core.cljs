@@ -7,12 +7,22 @@
 
 ;; define your app data so that it doesn't get over-written on reload
 
+(def acceleration-magnitude 0.0025)
+(def decel-magnitude 0.001)
+(def max-speed 6)
+
 (def app-state (atom {:text "Joust"
                       :character {:position [300 300]
-                                  :velocity [5 0]}
+                                  :velocity [1 0]}
                       :game-size [800 600]}))
 
 (defn by-id [id] (.getElementById js/document id))
+(defn abs [num] (Math/abs num))
+(defn direction [num] (if (> (abs num) 0)
+                        (/ num (abs num))
+                        0))
+
+(defn nearest-zero [& nums] (apply min-key abs nums))
 
 (def canvas (by-id "canvas"))
 (def canvas-ctx (.getContext canvas "2d"))
@@ -32,10 +42,20 @@
 (defn wrap [bounds coordinates]
   (map mod coordinates bounds))
 
+(defn accel-toward-zero [num]
+  (if (> (abs num) 0)
+    (- num (* (direction num) decel-magnitude))
+    num))
+
+(defn drag-character [character]
+  "Slow the character down by accelerating it toward 0"
+  (update-in character [:velocity] (partial map accel-toward-zero)))
+
 (defn game-tick [app-state]
   ;; (println "game tick state: " app-state)
   (-> app-state
       (update-in [:character] move-character)
+      (update-in [:character] drag-character)
       (update-in [:character :position] (partial wrap (:game-size app-state)))))
 
 ;; drawing platforms
@@ -48,22 +68,31 @@
   (swap! app-state game-tick)
   (draw-game @app-state canvas-ctx)
   (js/setTimeout (fn [] (.requestAnimationFrame js/window draw-fn))
-                 70))
+                 40))
 
 (.requestAnimationFrame js/window draw-fn)
 
 (defn on-js-reload [])
 
 (def dir-mappings
-  {"Right" [1 0]
-   "Left" [-1 0]})
+  {"Right" [acceleration-magnitude 0]
+   "Left" [(- acceleration-magnitude) 0]
+   "Up" [0 (- acceleration-magnitude)]
+   "Down" [0 acceleration-magnitude]})
+
+(defn speed-limit [velocity]
+  velocity
+  (nearest-zero velocity (* (direction velocity) max-speed)))
 
 (defn accelerate [addl-velocity character]
-  (update-in character [:velocity] (partial map + addl-velocity)))
+  (-> character
+      (update-in [:velocity] (partial map + addl-velocity))
+      (update-in [:velocity] (partial map speed-limit))))
 
 (defn key-handler [keypress]
   (if-let [acceleration (get dir-mappings (.-keyIdentifier keypress))]
     (do
+      (println "key pressed for dir: " acceleration)
       (.preventDefault keypress)
       (swap! app-state update-in [:character] (partial accelerate acceleration)))))
 
