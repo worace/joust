@@ -7,7 +7,7 @@
 
 (def acceleration-magnitude 1)
 (def flap-magnitude 3.5)
-(def vy-max 7)
+(def vy-max 5)
 (def decel-magnitude 0.1)
 (def vx-max 15)
 (def gravity-factor 0.4)
@@ -77,8 +77,19 @@
 (defn gravitate [{[vx vy] :velocity :as character}]
   (assoc-in character [:velocity] [vx (speed-limit (+ vy gravity-factor) vy-max)]))
 
+(defn collision? [a b]
+  ;; {:x 10 :y 10 :width :50 :height 50}
+  ;; {:x 15 :y 15 :width :50 :height 50}
+  (and (<= (:x a) (+ (:x b) (:width b)))
+       (>= (+ (:x a) (:width a)) (:x b))
+       (<= (:y a) (+ (:y b) (:height b)))
+       (>= (+ (:y a) (:height a)) (:y b))))
+
 (defn platform-support [platforms character]
-  character)
+  (let [c {:x (first (:position character)) :y (last (:position character)) :width 50 :height 50}]
+    (if (some (partial collision? c) platforms)
+      (assoc-in character [:velocity] [(first (:velocity character)) 0])
+      character)))
 
 (defn game-tick [app-state]
   (-> app-state
