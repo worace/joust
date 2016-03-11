@@ -5,8 +5,6 @@
 
 (println "Edits to this text should show up in your developer console.")
 
-;; define your app data so that it doesn't get over-written on reload
-
 (def acceleration-magnitude 1)
 (def flap-magnitude 3.5)
 (def vy-max 7)
@@ -22,6 +20,7 @@
 (def app-state (atom {:text "Joust"
                       :character {:position [300 300]
                                   :velocity [1 0]}
+                      :platforms [{:x 200 :y 380 :width 400 :height 10}]
                       :game-size [800 400]}))
 
 (defn by-id [id] (.getElementById js/document id))
@@ -44,8 +43,13 @@
   (update-in character [:position] (partial map + velocity)))
 
 (defn draw-game [app-state canvas-ctx]
+  ;;draw char
   (let [[char-x char-y] (:position (:character app-state))]
-    (draw-rect canvas-ctx char-x char-y 50 50)))
+    (draw-rect canvas-ctx char-x char-y 50 50))
+  ;; draw platforms
+  (doseq [platform (:platforms app-state)]
+    (let [{:keys [x y width height]} platform]
+      (draw-rect canvas-ctx x y width height))))
 
 (defn wrap [bounds coordinates]
   (map mod coordinates bounds))
@@ -57,7 +61,6 @@
 
 (defn drag-x [{[vx vy] :velocity :as character}]
   "Slow the character down by accelerating it toward 0"
-  (println "x vel: " vx)
   (assoc-in character [:velocity] [(accel-toward-zero vx) vy]))
 
 (defn speed-limit
@@ -74,16 +77,18 @@
 (defn gravitate [{[vx vy] :velocity :as character}]
   (assoc-in character [:velocity] [vx (speed-limit (+ vy gravity-factor) vy-max)]))
 
+(defn platform-support [platforms character]
+  character)
+
 (defn game-tick [app-state]
-  ;; (println "game tick state: " app-state)
   (-> app-state
       (update-in [:character] move-character)
       (update-in [:character] drag-x)
       (update-in [:character] gravitate)
+      (update-in [:character] (partial platform-support (:platforms app-state)))
       (update-in [:character :position] (partial wrap (:game-size app-state)))))
 
 (defn draw-fn []
-  ;; update state
   (clear-canvas canvas-ctx)
   (swap! app-state game-tick)
   (draw-game @app-state canvas-ctx)
@@ -94,8 +99,9 @@
 
 
 ;; drawing platforms
-;; gravitation
 ;; detect platform collision (gravitation end)
+;; Make holding buttons work??
+
 (.requestAnimationFrame js/window draw-fn)
 
 (defn key-handler [keypress]
