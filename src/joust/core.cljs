@@ -53,3 +53,18 @@
 (.requestAnimationFrame js/window draw-fn)
 
 (defn on-js-reload [])
+
+(def dir-mappings
+  {"Right" [1 0]
+   "Left" [-1 0]})
+
+(defn accelerate [addl-velocity character]
+  (update-in character [:velocity] (partial map + addl-velocity)))
+
+(defn key-handler [keypress]
+  (if-let [acceleration (get dir-mappings (.-keyIdentifier keypress))]
+    (do
+      (.preventDefault keypress)
+      (swap! app-state update-in [:character] (partial accelerate acceleration)))))
+
+(.addEventListener js/window "keydown" key-handler)
