@@ -7,9 +7,17 @@
 
 ;; define your app data so that it doesn't get over-written on reload
 
-(def acceleration-magnitude 0.0025)
+(def acceleration-magnitude 1)
+(def flap-magnitude 3.5)
+(def vy-max 7)
 (def decel-magnitude 0.001)
-(def max-speed 6)
+(def vx-max 12)
+(def gravity-factor 0.4)
+
+(def button-value-mappings
+  {"Right" [acceleration-magnitude 0]
+   "Left" [(- acceleration-magnitude) 0]
+   "U+0020" [0 (- flap-magnitude)]})
 
 (def app-state (atom {:text "Joust"
                       :character {:position [300 300]
@@ -51,16 +59,27 @@
   "Slow the character down by accelerating it toward 0"
   (update-in character [:velocity] (partial map accel-toward-zero)))
 
+(defn speed-limit
+  ([velocity] (speed-limit velocity vx-max))
+  ([velocity limit] (nearest-zero velocity (* (direction velocity) limit))))
+
+(defn accelerate [addl-velocity character]
+  (let [c (-> character
+              (update-in [:velocity] (partial map + addl-velocity))
+              (update-in [:velocity] (partial map speed-limit)))]
+    (println "accelerated char: " c)
+    c))
+
+(defn gravitate [{[vx vy] :velocity :as character}]
+  (assoc-in character [:velocity] [vx (speed-limit (+ vy gravity-factor) vy-max)]))
+
 (defn game-tick [app-state]
   ;; (println "game tick state: " app-state)
   (-> app-state
       (update-in [:character] move-character)
       (update-in [:character] drag-character)
+      (update-in [:character] gravitate)
       (update-in [:character :position] (partial wrap (:game-size app-state)))))
-
-;; drawing platforms
-;; gravitation
-;; detect platform collision (gravitation end)
 
 (defn draw-fn []
   ;; update state
@@ -70,30 +89,23 @@
   (js/setTimeout (fn [] (.requestAnimationFrame js/window draw-fn))
                  40))
 
+
+
+
+;; drawing platforms
+;; gravitation
+;; detect platform collision (gravitation end)
 (.requestAnimationFrame js/window draw-fn)
 
-(defn on-js-reload [])
-
-(def dir-mappings
-  {"Right" [acceleration-magnitude 0]
-   "Left" [(- acceleration-magnitude) 0]
-   "Up" [0 (- acceleration-magnitude)]
-   "Down" [0 acceleration-magnitude]})
-
-(defn speed-limit [velocity]
-  velocity
-  (nearest-zero velocity (* (direction velocity) max-speed)))
-
-(defn accelerate [addl-velocity character]
-  (-> character
-      (update-in [:velocity] (partial map + addl-velocity))
-      (update-in [:velocity] (partial map speed-limit))))
-
 (defn key-handler [keypress]
-  (if-let [acceleration (get dir-mappings (.-keyIdentifier keypress))]
+  (println (.-keyIdentifier keypress))
+  (if-let [acceleration (get button-value-mappings (.-keyIdentifier keypress))]
     (do
       (println "key pressed for dir: " acceleration)
       (.preventDefault keypress)
       (swap! app-state update-in [:character] (partial accelerate acceleration)))))
-
+(.removeEventListener js/window "keydown" key-handler)
 (.addEventListener js/window "keydown" key-handler)
+
+
+(defn on-js-reload [])
