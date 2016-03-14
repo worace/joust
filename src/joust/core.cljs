@@ -19,8 +19,12 @@
 
 (def app-state (atom {:text "Joust"
                       :character {:position [300 300]
-                                  :velocity [1 0]}
-                      :platforms [{:x 200 :y 380 :width 400 :height 10}]
+                                  :velocity [1 0]
+                                  :width 25
+                                  :height 25}
+                      :platforms [{:x 200 :y 380 :width 400 :height 10}
+                                  {:x 0 :y 100 :width 200 :height 10}
+                                  {:x 600 :y 100 :width 200 :height 10}]
                       :game-size [800 400]}))
 
 (defn by-id [id] (.getElementById js/document id))
@@ -45,7 +49,7 @@
 (defn draw-game [app-state canvas-ctx]
   ;;draw char
   (let [[char-x char-y] (:position (:character app-state))]
-    (draw-rect canvas-ctx char-x char-y 50 50))
+    (draw-rect canvas-ctx char-x char-y 25 25))
   ;; draw platforms
   (doseq [platform (:platforms app-state)]
     (let [{:keys [x y width height]} platform]
@@ -86,7 +90,7 @@
        (>= (+ (:y a) (:height a)) (:y b))))
 
 (defn platform-support [platforms character]
-  (let [c {:x (first (:position character)) :y (last (:position character)) :width 50 :height 50}]
+  (let [c {:x (first (:position character)) :y (last (:position character)) :width 25 :height 25}]
     (if (some (partial collision? c) platforms)
       (assoc-in character [:velocity] [(first (:velocity character)) 0])
       character)))
