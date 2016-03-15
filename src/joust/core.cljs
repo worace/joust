@@ -6,18 +6,14 @@
 (println "Edits to this text should show up in your developer console.")
 
 (def acceleration-magnitude 1)
-(def flap-magnitude 3.5)
+(def flap-magnitude 6)
 (def vy-max 5)
 (def decel-magnitude 0.1)
 (def vx-max 15)
 (def gravity-factor 0.4)
 
-(def button-value-mappings
-  {"Right" [acceleration-magnitude 0]
-   "Left" [(- acceleration-magnitude) 0]
-   "U+0020" [0 (- flap-magnitude)]})
-
 (def app-state (atom {:text "Joust"
+                      :accelerating nil
                       :character {:position [300 300]
                                   :velocity [1 0]
                                   :width 25
@@ -95,8 +91,14 @@
       (assoc-in character [:velocity] [(first (:velocity character)) 0])
       character)))
 
+(defn accelerate-character [app-state]
+  (if (:accelerating app-state)
+    (update-in app-state [:character] (partial accelerate (:accelerating app-state)))
+    app-state))
+
 (defn game-tick [app-state]
   (-> app-state
+      (accelerate-character)
       (update-in [:character] move-character)
       (update-in [:character] drag-x)
       (update-in [:character] gravitate)
@@ -104,14 +106,14 @@
       (update-in [:character :position] (partial wrap (:game-size app-state)))))
 
 (defn draw-fn []
+  ;; check updated time against some threshold
   (clear-canvas canvas-ctx)
   (swap! app-state game-tick)
   (draw-game @app-state canvas-ctx)
+  ;; set last updated time
+  ;; request next frame right away
   (js/setTimeout (fn [] (.requestAnimationFrame js/window draw-fn))
                  40))
-
-
-
 
 ;; drawing platforms
 ;; detect platform collision (gravitation end)
@@ -119,15 +121,36 @@
 
 (.requestAnimationFrame js/window draw-fn)
 
-(defn key-handler [keypress]
-  (println (.-keyIdentifier keypress))
-  (if-let [acceleration (get button-value-mappings (.-keyIdentifier keypress))]
+(def key-down-handlers
+  {"Right" (fn [app-state] (swap! app-state assoc-in [:accelerating] [acceleration-magnitude 0]))
+   "Left" (fn [app-state] (swap! app-state assoc-in [:accelerating] [(- acceleration-magnitude) 0]))
+   "U+0020" (fn [app-state] (swap! app-state update-in [:character] (partial accelerate [0 (- flap-magnitude)])))})
+
+(defn key-down [event]
+  (println (.-keyIdentifier event))
+  (if-let [handler (get key-down-handlers (.-keyIdentifier event))]
     (do
-      (println "key pressed for dir: " acceleration)
-      (.preventDefault keypress)
-      (swap! app-state update-in [:character] (partial accelerate acceleration)))))
-(.removeEventListener js/window "keydown" key-handler)
-(.addEventListener js/window "keydown" key-handler)
+      (println "key pressed for dir: " (.-keyIdentifier event))
+      (.preventDefault event)
+      (handler app-state))))
+
+(.removeEventListener js/window "keydown" key-down)
+(.addEventListener js/window "keydown" key-down)
+
+(def key-up-handlers
+  {"Right" (fn [app-state] (swap! app-state assoc-in [:accelerating] nil))
+   "Left" (fn [app-state] (swap! app-state assoc-in [:accelerating] nil))})
+
+(defn key-up [event]
+  (println (.-keyIdentifier event))
+  (if-let [handler (get key-up-handlers (.-keyIdentifier event))]
+    (do
+      (println "key released for dir: " (.-keyIdentifier event))
+      (.preventDefault event)
+      (handler app-state))))
+
+(.removeEventListener js/window "keyup" key-up)
+(.addEventListener js/window "keyup" key-up)
 
 
 (defn on-js-reload [])
